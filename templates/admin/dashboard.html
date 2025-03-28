@@ -59,7 +59,12 @@
                             <a class="nav-link text-white" href="/admin?from={{ (now - timedelta(days=7)).strftime('%Y-%m-%d') }}&to={{ now.strftime('%Y-%m-%d') }}">
                                 Last 7 Days
                             </a>
-                        </li>                        
+                        </li> 
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="/admin/export?from={{ date_from }}&to={{ date_to }}">
+                                Export Data
+                            </a>
+                        </li>                       
                     </ul>
                 </div>
             </nav>
