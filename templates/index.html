@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Medical Diagnosis Expert System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border-radius: 5px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .symptoms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .symptom-group {
+            margin-bottom: 15px;
+        }
+        .symptom-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #34495e;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+            font-size: 16px;
+        }
+        .severity-note {
+            font-size: 0.8em;
+            color: #7f8c8d;
+            margin-top: 3px;
+            font-style: italic;
+        }
+        .diagnose-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+        .diagnose-btn:hover {
+            background-color: #2980b9;
+        }
+        @media (max-width: 768px) {
+            .symptoms-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Medical Symptom Checker</h1>
+        <p>Please indicate your symptoms below (select "No" if you don't have the symptom):</p>
+        
+        <form action="/diagnose" method="post">
+            <div class="symptoms-grid">
+                <!-- Head Section -->
+                <div class="symptom-group">
+                    <label for="headache">Headache:</label>
+                    <select id="headache" name="headache" required>
+                        <option value="no">No</option>
+                        <option value="low">Mild</option>
+                        <option value="high">Severe</option>
+                    </select>
+                    <div class="severity-note">Select severity if present</div>
+                </div>
+                
+                <div class="symptom-group">
+                    <label for="fainting">Fainting:</label>
+                    <select id="fainting" name="fainting" required>
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                    </select>
+                </div>
+                
+                <div class="symptom-group">
+                    <label for="sunken_eyes">Sunken Eyes:</label>
+                    <select id="sunken_eyes" name="sunken_eyes" required>
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                    </select>
+                </div>
+                
+                <div class="symptom-group">
+                    <label for="blurred_vision">Blurred Vision:</label>
+                    <select id="blurred_vision" name="blurred_vision" required>
+                        <option value="no">No</option>
+                        <option value="low">Mild</option>
+                        <option value="high">Severe</option>
+                    </select>
+                    <div class="severity-note">Select severity if present</div>
+                </div>
+                
+                <!-- Upper Body Section -->
+                <div class="symptom-group">
+                    <label for="sore_throat">Sore Throat:</label>
+                    <select id="sore_throat" name="sore_throat" required>
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                    </select>
+                </div>
+                
+                <div class="symptom-group">
+                    <label for="cough">Cough:</label>
+                    <select id="cough" name="cough" required>
+                        <option value="no">No</option>
+                        <option value="low">Mild</option>
+                        <option value="high">Severe</option>
+                    </select>
+                    <div class="severity-note">Select severity if present</div>
+                </div>
+                
+                <div class="symptom-group">
+                    <label for="chest_pain">Chest Pain:</label>
+                    <select id="chest_pain" name="chest_pain" required>
+                        <option value="no">No</option>
+                        <option value="low">Mild</option>
+                        <option value="high">Severe</option>
+                    </select>
+                    <div class="severity-note">Select severity if present</div>
+                </div>
+                
+                <!-- Core Body Section -->
+                <div class="symptom-group">
+                    <label for="back_pain">Back Pain:</label>
+                    <select id="back_pain" name="back_pain" required>
+                        <option value="no">No</option>
+                        <option value="low">Mild</option>
+                        <option value="high">Severe</option>
+                    </select>
+                    <div class="severity-note">Select severity if present</div>
+                </div>
+                
+                <div class="symptom-group">
+                    <label for="nausea">Nausea:</label>
+                    <select id="nausea" name="nausea" required>
+                        <option value="no">No</option>
+                        <option value="low">Mild</option>
+                        <option value="high">Severe</option>
+                    </select>
+                    <div class="severity-note">Select severity if present</div>
+                </div>
+                
+                <div class="symptom-group">
+                    <label for="fatigue">Fatigue:</label>
+                    <select id="fatigue" name="fatigue" required>
+                        <option value="no">No</option>
+                        <option value="low">Mild</option>
+                        <option value="high">Severe</option>
+                    </select>
+                    <div class="severity-note">Select severity if present</div>
+                </div>
+                
+                <div class="symptom-group">
+                    <label for="restlessness">Restlessness:</label>
+                    <select id="restlessness" name="restlessness" required>
+                        <option value="no">No</option>
+                        <option value="low">Mild</option>
+                        <option value="high">Severe</option>
+                    </select>
+                    <div class="severity-note">Select severity if present</div>
+                </div>
+                
+                <!-- Systemic Symptoms -->
+                <div class="symptom-group">
+                    <label for="fever">Fever:</label>
+                    <select id="fever" name="fever" required>
+                        <option value="no">No</option>
+                        <option value="low">Low Grade</option>
+                        <option value="high">High</option>
+                    </select>
+                    <div class="severity-note">Select severity if present</div>
+                </div>
+                
+                <div class="symptom-group">
+                    <label for="low_body_temp">Low Body Temperature:</label>
+                    <select id="low_body_temp" name="low_body_temp" required>
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button type="submit" class="diagnose-btn">Diagnose Symptoms</button>
+        </form>
+    </div>
+</body>
+</html>

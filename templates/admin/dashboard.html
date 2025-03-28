@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .symptoms-list {
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #dee2e6;
+        }
+        .symptom-item {
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .symptom-name {
+            font-weight: 500;
+            margin-right: 10px;
+        }
+        .symptom-value {
+            font-family: monospace;
+            min-width: 60px;
+            text-align: center;
+            border-radius: 3px;
+            padding: 2px 5px;
+            font-size: 0.85em;
+        }
+        .bg-exact { background-color: #28a745; color: white; }
+        .bg-probable { background-color: #ffc107; color: #212529; }
+        .empty-state {
+            padding: 2rem;
+            text-align: center;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-2 d-none d-md-block bg-dark sidebar">
+                <div class="sidebar-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active text-white" href="/admin">
+                                Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="/admin?from={{ (now - timedelta(days=7)).strftime('%Y-%m-%d') }}&to={{ now.strftime('%Y-%m-%d') }}">
+                                Last 7 Days
+                            </a>
+                        </li>                        
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main role="main" class="col-md-9 ml-sm-auto col-lg-10 px-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">Diagnosis Dashboard</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <form class="form-inline">
+                            <div class="form-group mr-2">
+                                <input type="date" class="form-control" name="from" value="{{ date_from }}">
+                            </div>
+                            <div class="form-group mr-2">
+                                <input type="date" class="form-control" name="to" value="{{ date_to }}">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Filter</button>
+                        </form>
+                    </div>
+                </div>
+
+                {% if not stats.diagnosis_cases %}
+                <div class="alert alert-info">
+                    No diagnosis cases found for the selected period.
+                </div>
+                {% else %}
+                <!-- Summary Cards -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-white bg-primary">
+                            <div class="card-body">
+                                <h5 class="card-title">Total Cases</h5>
+                                <p class="card-text display-4">{{ stats.diagnosis_cases|length }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-white bg-success">
+                            <div class="card-body">
+                                <h5 class="card-title">Exact Matches</h5>
+                                <p class="card-text display-4">{{ stats.exact_matches }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-white bg-info">
+                            <div class="card-body">
+                                <h5 class="card-title">Locations</h5>
+                                <p class="card-text display-4">{{ stats.location_stats.keys()|length }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Diagnosis Cases Table -->
+                <div class="card mt-4">
+                    <div class="card-header bg-info text-white">
+                        <div class="d-flex justify-content-between">
+                            <h3>Diagnosis Cases</h3>
+                            <input type="text" id="caseFilter" class="form-control w-25" placeholder="Filter cases...">
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="thead-dark">
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Location</th>
+                                        <th>Symptoms</th>
+                                        <th>Diagnosis</th>
+                                        <th>Match</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for case in stats.diagnosis_cases %}
+                                    <tr>
+                                        <td>{{ case.time }}</td>
+                                        <td>{{ case.location }}</td>
+                                        <td>
+                                            <div class="symptoms-list">
+                                                {% if case.symptoms %}
+                                                    {% for name, value in case.symptoms.items() %}
+                                                    <div class="symptom-item">
+                                                        <span class="symptom-name">{{ name }}</span>
+                                                        <span class="symptom-value 
+                                                            {% if value in ['yes','high'] %}bg-danger text-white
+                                                            {% elif value in ['no','low'] %}bg-success text-white
+                                                            {% else %}bg-secondary text-white{% endif %}">
+                                                            {{ value }}
+                                                        </span>
+                                                    </div>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <div class="empty-state">No symptoms recorded</div>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                        <td class="fw-bold">{{ case.diagnosis.disease if case.diagnosis.disease else 'Unknown' }}</td>
+                                        <td>
+                                            {% if case.diagnosis.matched %}
+                                            <span class="badge bg-exact">Exact</span>
+                                            {% else %}
+                                            <span class="badge bg-probable">Probable</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Diagnoses by Location</h3>
+                            </div>
+                            <div class="card-body">
+                                {% if stats.location_stats %}
+                                <canvas id="locationChart" height="250"></canvas>
+                                {% else %}
+                                <div class="empty-state">No location data available</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Common Diagnoses</h3>
+                            </div>
+                            <div class="card-body">
+                                {% if stats.diagnosis_stats %}
+                                <canvas id="diagnosisChart" height="250"></canvas>
+                                {% else %}
+                                <div class="empty-state">No diagnosis data available</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Case filtering
+        document.getElementById('caseFilter')?.addEventListener('input', function(e) {
+            const filter = e.target.value.toLowerCase();
+            document.querySelectorAll('tbody tr').forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(filter) ? '' : 'none';
+            });
+        });
+
+        // Charts - only render if data exists
+        {% if stats.diagnosis_stats and stats.diagnosis_stats.keys()|length > 0 %}
+        // Location Chart
+        const locationCtx = document.getElementById('locationChart')?.getContext('2d');
+        if (locationCtx) {
+            new Chart(locationCtx, {
+                type: 'bar',
+                data: {
+                    labels: {{ stats.location_stats.keys()|list|tojson }},
+                    datasets: [{
+                        label: 'Cases',
+                        data: {{ stats.location_stats.values()|list|tojson }},
+                        backgroundColor: 'rgba(54, 162, 235, 0.7)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        // Diagnosis Chart
+        const diagnosisCtx = document.getElementById('diagnosisChart')?.getContext('2d');
+        if (diagnosisCtx) {
+            new Chart(diagnosisCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: {{ stats.diagnosis_stats.keys()|list|tojson }},
+                    datasets: [{
+                        data: {{ stats.diagnosis_stats.values()|list|tojson }},
+                        backgroundColor: [
+                            '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e',
+                            '#e74a3b', '#858796', '#5a5c69'
+                        ]
+                    }]
+                }
+            });
+        }
+        {% endif %}
+    </script>
+</body>
+</html>

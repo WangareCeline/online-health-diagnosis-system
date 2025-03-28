@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Diagnosis Results</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Diagnosis Results</h1>
+        
+        <div class="result-card">
+            <h2>{{ result.disease }}</h2>
+            
+            <p class="match-type">
+                {% if result.matched %}
+                <span class="exact-match">✓ Exact match found</span>
+                {% else %}
+                <span class="probable-match">≈ Probable match based on your symptoms</span>
+                {% endif %}
+            </p>
+            
+            <div class="section">
+                <h3>Description:</h3>
+                <p>{{ result.description }}</p>
+            </div>
+            
+            <div class="section">
+                <h3>Recommended Treatments:</h3>
+                <p>{{ result.treatments }}</p>
+            </div>
+            
+            <div class="download-options">
+                <h3>Download Report:</h3>
+                <form action="/download-report" method="post">
+                    <input type="hidden" name="disease" value="{{ result.disease }}">
+                    <input type="hidden" name="description" value="{{ result.description }}">
+                    <input type="hidden" name="treatments" value="{{ result.treatments }}">
+                    <input type="hidden" name="matched" value="{{ result.matched }}">
+                    
+                    <button type="submit" name="format" value="pdf" class="download-btn pdf-btn">
+                        Download as PDF
+                    </button>
+                    
+                    <button type="submit" name="format" value="txt" class="download-btn txt-btn">
+                        Download as Text
+                    </button>
+                </form>
+            </div>
+            
+            <a href="/" class="back-btn">Check Another Set of Symptoms</a>
+        </div>
+        
+        <div class="disclaimer">
+            <p><strong>Disclaimer:</strong> This is an expert system for educational purposes only. 
+            Always consult a healthcare professional for medical advice.</p>
+        </div>
+    </div>
+</body>
+</html>
