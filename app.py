@@ -7,12 +7,12 @@ import logging
 import os
 import json
 import hashlib
+import csv
 from datetime import datetime, timedelta
 from collections import defaultdict
 from functools import wraps
 import geoip2.database
 from geoip2.errors import AddressNotFoundError
-from flask_sqlalchemy import SQLAlchemy
 
 # Initialize GeoIP reader 
 geoip_reader = geoip2.database.Reader('GeoLite2-City.mmdb')
@@ -362,28 +362,6 @@ def generate_pdf(result):
         return pdf_output
 
 
-# Configure SQLite database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///diagnosis.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-
-# Diagnosis Model
-class Diagnosis(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    ip_hash = db.Column(db.String(64))
-    location = db.Column(db.String(100))
-    user_agent = db.Column(db.String(200))
-    disease = db.Column(db.String(100))
-    description = db.Column(db.Text)
-    treatments = db.Column(db.Text)
-    matched = db.Column(db.Boolean)
-    symptoms = db.Column(db.JSON)  # Stores symptoms as JSON
-
-    def __repr__(self):
-        return f'<Diagnosis {self.id} - {self.disease}>'
-
-
 # ===== ADMIN AUTHENTICATION =====
 ADMIN_USERNAME = "admin"  # Change these!
 ADMIN_PASSWORD = "securepassword123"  # Use environment variables in production
@@ -438,16 +416,66 @@ def admin_stats():
                          date_from=date_from,
                          date_to=date_to)
 
+
+@app.route('/admin/export')
+@admin_required
+def export_data():
+    date_from = request.args.get('from', '')
+    date_to = request.args.get('to', '')
+    
+    log_data = load_log_data(date_from, date_to)
+    stats = calculate_stats(log_data)
+    
+    # Create CSV export
+    output = StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    writer.writerow(['Metric', 'Value'])
+    
+    # Write data
+    writer.writerow(['Total Requests', stats['total_requests']])
+    writer.writerow(['Symptom Checks', stats['symptom_checks']])
+    writer.writerow(['Report Downloads', stats['report_downloads']])
+    writer.writerow([])
+    writer.writerow(['Endpoint', 'Count'])
+    for endpoint, count in stats['endpoint_counts'].items():
+        writer.writerow([endpoint, count])
+    
+    # Prepare response
+    output.seek(0)
+    response = make_response(output.getvalue())
+    response.headers['Content-Disposition'] = f'attachment; filename=stats_export_{datetime.now().strftime("%Y%m%d")}.csv'
+    response.headers['Content-type'] = 'text/csv'
+    return response
+
+
+
 def calculate_stats(log_data):
     stats = {
         'total_requests': len(log_data),
+        'symptom_checks': 0,  # Initialize
+        'report_downloads': 0,  # Initialize
         'exact_matches': 0,
         'location_stats': defaultdict(int),
         'diagnosis_stats': defaultdict(int),
+        'endpoint_counts': defaultdict(int),
         'diagnosis_cases': []
     }
 
     for entry in log_data:
+        # Track endpoint counts
+        endpoint = f"{entry.get('method')} {entry.get('endpoint')}"
+        stats['endpoint_counts'][endpoint] += 1
+        
+         # Count symptom checks (POST to /diagnose)
+        if entry.get("endpoint") == "/diagnose" and entry.get("method") == "POST":
+            stats['symptom_checks'] += 1
+        
+        # Count report downloads (POST to /download-report)
+        if entry.get("endpoint") == "/download-report" and entry.get("method") == "POST":
+            stats['report_downloads'] += 1
+            
         if entry.get("diagnosis"):
             # Count exact matches
             if entry["diagnosis"].get("matched"):
@@ -557,20 +585,6 @@ def diagnose():
                 "matched": False
             }
             
-        # Save to database
-        ip = request.remote_addr
-        new_diagnosis = Diagnosis(
-            ip_hash=anonymize_ip(ip),
-            location=get_city_from_ip(ip),
-            user_agent=request.user_agent.string,
-            disease=engine.result['disease'],
-            description=engine.result['description'],
-            treatments=engine.result['treatments'],
-            matched=engine.result['matched'],
-            symptoms={k.replace('_', ' ').title(): v.title() for k, v in symptoms.items()}
-        )
-        db.session.add(new_diagnosis)
-        db.session.commit()
             
         # Explicitly log the diagnosis
         ip = request.remote_addr
@@ -651,10 +665,6 @@ if __name__ == '__main__':
     os.makedirs("Disease descriptions", exist_ok=True)
     os.makedirs("Disease treatments", exist_ok=True)
     os.makedirs("logs", exist_ok=True)
-    
-    # Initialize database
-    with app.app_context():
-        db.create_all()
     
     preprocess()
     app.run(debug=True)
