@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Welcome, {{ user.username }}!</h2>
+            
+            {% if user.is_admin %}
+            <div class="alert alert-info">
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-info">
+                    Go to Admin Dashboard
+                </a>
+            </div>
+            {% endif %}
+            
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h4>Medical Diagnosis System</h4>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        Start by entering your symptoms to get a diagnosis.
+                    </p>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">
+                        Begin Diagnosis
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
