@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, make_response, redirect, url_for
+from flask import Flask, flash, render_template, request, make_response, redirect, url_for
 from experta import *
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
@@ -13,6 +13,9 @@ from collections import defaultdict
 from functools import wraps
 import geoip2.database
 from geoip2.errors import AddressNotFoundError
+from auth import log_access, login_manager, init_db, admin_required, User, get_db_connection
+from flask_login import login_required, current_user, login_user, logout_user
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # Initialize GeoIP reader 
 geoip_reader = geoip2.database.Reader('GeoLite2-City.mmdb')
@@ -21,6 +24,86 @@ geoip_reader = geoip2.database.Reader('GeoLite2-City.mmdb')
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-here')  # Change this in production!
+
+# Initialize login manager
+login_manager.init_app(app)
+
+# Initialize database
+init_db()
+
+# Add these new routes for authentication
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        remember = True if request.form.get('remember') else False
+        
+        conn = get_db_connection()
+        try:
+            user_data = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+            if not user_data or not check_password_hash(user_data['password_hash'], password):
+                flash('Please check your login details and try again.', 'danger')
+                return redirect(url_for('login'))
+            
+            user = User(id=user_data['id'], 
+                       username=user_data['username'],
+                       email=user_data['email'],
+                       password_hash=user_data['password_hash'],
+                       is_admin=user_data['is_admin'])
+            
+            login_user(user, remember=remember)
+            return redirect(url_for('first_dashboard'))
+        finally:
+            conn.close()
+    
+    return render_template('auth/login.html')
+
+# Similarly update your signup route
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        conn = get_db_connection()
+        try:
+            existing_user = conn.execute(
+                'SELECT id FROM users WHERE username = ? OR email = ?', 
+                (username, email)
+            ).fetchone()
+            
+            if existing_user:
+                flash('Username or email already exists', 'danger')
+                return redirect(url_for('signup'))
+            
+            conn.execute(
+                'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
+                (username, email, generate_password_hash(password))
+            )
+            conn.commit()
+            
+            flash('Account created successfully! Please log in.', 'success')
+            return redirect(url_for('login'))
+        finally:
+            conn.close()
+    
+    return render_template('auth/signup.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('signup'))
+
+@app.route('/first_dashboard')
+@login_required
+def first_dashboard():
+    return render_template('first_dashboard.html', user=current_user)
+
+
 
 # Load disease data
 diseases_list = []
@@ -89,29 +172,36 @@ def log_request(response):
     if request.path.startswith('/static/'):
         return response
         
-    ip = request.remote_addr
-    log_entry = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "method": request.method,
-        "endpoint": request.path,
-        "ip": anonymize_ip(ip),
-        "location": get_city_from_ip(ip),  # New: City/country
-        "user_agent": request.user_agent.string,
-        "symptoms": dict(request.form) if request.path == '/diagnose' and request.method == 'POST' else None,
-        "diagnosis": None
-    }
-
+    # Database logging (for all requests)
+    log_access(
+        user_id=current_user.id if current_user.is_authenticated else None,
+        ip_address=request.remote_addr,
+        endpoint=request.path,
+        method=request.method,
+        status_code=response.status_code
+    )
+    
+    # Enhanced JSON logging (only for diagnosis requests)
     if request.path == '/diagnose' and request.method == 'POST':
-        symptoms = {
-            k.replace('_', ' ').title(): v.title() 
-            for k, v in request.form.items()
-            if k not in ['csrf_token']  # Exclude CSRF token if using Flask-WTF
+        ip = request.remote_addr
+        log_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "method": request.method,
+            "endpoint": request.path,
+            "ip": anonymize_ip(ip),
+            "location": get_city_from_ip(ip),
+            "user_agent": request.user_agent.string,
+            "symptoms": {
+                k.replace('_', ' ').title(): v.title() 
+                for k, v in request.form.items()
+                if k not in ['csrf_token']
+            },
+            "diagnosis": None  # Will be updated after diagnosis
         }
-        log_entry["symptoms"] = symptoms
-
-    os.makedirs("logs", exist_ok=True)
-    with open("logs/access.log", "a") as f:
-        f.write(json.dumps(log_entry) + "\n")
+        
+        os.makedirs("logs", exist_ok=True)
+        with open("logs/access.log", "a") as f:
+            f.write(json.dumps(log_entry) + "\n")
     
     return response
 
@@ -361,7 +451,7 @@ def generate_pdf(result):
             return bytes(pdf_output)
         return pdf_output
 
-
+"""
 # ===== ADMIN AUTHENTICATION =====
 ADMIN_USERNAME = "admin"  # Change these!
 ADMIN_PASSWORD = "securepassword123"  # Use environment variables in production
@@ -381,7 +471,7 @@ def authenticate():
         401,
         {'WWW-Authenticate': 'Basic realm="Login Required"'}
     )
-
+"""
 # ===== ADMIN DASHBOARD ROUTES =====
 @app.route('/admin')
 @admin_required
@@ -549,7 +639,24 @@ def get_city_from_ip(ip):
         return "Location Error"
 
 
+def get_access_logs():
+    conn = get_db_connection()  # Gets a database connection
+    logs = conn.execute('''
+        SELECT l.*, u.username 
+        FROM access_logs l
+        LEFT JOIN users u ON l.user_id = u.id
+        ORDER BY l.timestamp DESC 
+        LIMIT 100
+    ''').fetchall()  # Executes SQL query and gets all results
+    conn.close()  # Closes the connection
+    return logs
+
+
 @app.route('/')
+def home_page():
+    return render_template('auth/signup.html')
+
+@app.route('/index')
 def index():
     return render_template('index.html')
 
@@ -657,6 +764,12 @@ It is not a substitute for professional medical advice, diagnosis, or treatment.
     except Exception as e:
         logger.error(f"Report generation error: {str(e)}", exc_info=True)
         return "Error generating report", 500
+
+
+@app.route('/admin/logs')
+@admin_required
+def view_logs():
+    return render_template('admin/logs.html', logs=get_access_logs())
 
 
 if __name__ == '__main__':
