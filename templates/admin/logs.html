@@ -1,0 +1,28 @@
+<!-- templates/logs.html -->
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Access Logs</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Timestamp</th>
+            <th>User</th>
+            <th>IP Address</th>
+            <th>Endpoint</th>
+            <th>Method</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in logs %}
+        <tr>
+            <td>{{ log.timestamp }}</td>
+            <td>{{ log.username or 'Guest' }}</td>
+            <td>{{ log.ip_address }}</td>
+            <td>{{ log.endpoint }}</td>
+            <td>{{ log.method }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
